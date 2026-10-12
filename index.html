@@ -147,7 +147,7 @@ td.nd{color:var(--mute)}
       <div>
         <label for="temp">Temporada</label>
         <input id="temp" type="number" inputmode="numeric" value="2026">
-        <div class="hint">2026 = 2025/26 · 2027 = 2026/27</div>
+        <div class="hint">Año en que empieza: 2026 = 2026/27 · 2025 = 2025/26</div>
       </div>
       <div>
         <label for="n">Nº de partidos</label>
@@ -171,6 +171,8 @@ td.nd{color:var(--mute)}
       <div><label for="l_ct">Córners totales</label><input id="l_ct" inputmode="decimal" value="8.5"></div>
       <div><label for="l_te">Tiros equipo</label><input id="l_te" inputmode="decimal" value="12.5"></div>
       <div><label for="l_ta">Tiros al arco equipo</label><input id="l_ta" inputmode="decimal" value="3.5"></div>
+      <div><label for="l_ya">Amarillas equipo</label><input id="l_ya" inputmode="decimal" value="2.5"></div>
+      <div><label for="l_tt">Tarjetas totales</label><input id="l_tt" inputmode="decimal" value="4.5"><div class="hint">Roja = 2 amarillas</div></div>
     </div>
 
     <button class="go" id="go" type="button">Analizar</button>
@@ -217,7 +219,9 @@ const M = [
   {k:"ce", n:"Córners del equipo", s:"C.Eq"},
   {k:"ct", n:"Córners totales",    s:"C.Tot"},
   {k:"te", n:"Tiros del equipo",   s:"T.Eq"},
-  {k:"ta", n:"Tiros al arco",      s:"T.Arco"}
+  {k:"ta", n:"Tiros al arco",      s:"T.Arco"},
+  {k:"ya", n:"Amarillas del equipo", s:"Am.Eq"},
+  {k:"tt", n:"Tarjetas totales",    s:"Tarj.Tot"}
 ];
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -324,17 +328,21 @@ async function analizar(cfg, onProgress){
 
   let done = 0;
   const rows = await pool(base, 5, async b => {
-    let ce = null, ct = null, te = null, ta = null;
+    let ce = null, ct = null, te = null, ta = null, ya = null, tt = null;
     try{
       const sum = await getJSON(`${API}/${cfg.liga}/summary?event=${b.id}`);
       const {self, opp} = parseBox(sum, team.id);
       if(self){
         ce = self.wonCorners ?? null; te = self.totalShots ?? null; ta = self.shotsOnTarget ?? null;
         if(ce != null && opp?.wonCorners != null) ct = ce + opp.wonCorners;
+        ya = self.yellowCards ?? null;
+        if(ya != null && opp?.yellowCards != null){
+          tt = ya + opp.yellowCards + 2 * ((self.redCards ?? 0) + (opp.redCards ?? 0));
+        }
       }
     }catch(e){}
     onProgress(++done, base.length);
-    return {...b, ce, ct, te, ta};
+    return {...b, ce, ct, te, ta, ya, tt};
   });
   return {team, rows};
 }
@@ -409,8 +417,8 @@ function renderP1(d){
     h += `</tr>`;
   }
   h += `</tbody></table></div>`;
-  const nd = rows.filter(r => r.ct == null || r.te == null).length;
-  if(nd) h += `<p class="note">${nd} partido(s) sin estadísticas de córners o tiros en ESPN (n/d): no cuentan en el cumplimiento de esas líneas.</p>`;
+  const nd = rows.filter(r => r.ct == null || r.te == null || r.ya == null || r.tt == null).length;
+  if(nd) h += `<p class="note">${nd} partido(s) sin estadísticas de córners, tiros o tarjetas en ESPN (n/d): no cuentan en el cumplimiento de esas líneas.</p>`;
   return h;
 }
 function renderP2(d){
@@ -443,7 +451,7 @@ function renderP3(d){
       <div class="sub">${s.n} partidos${d.lines[m.k] != null ? ` · línea ≥ ${d.lines[m.k]}` : ""}</div>
       <div class="stats"><div><b>${fmt(s.min)}</b>Mín</div><div><b>${fmt(s.med)}</b>Mediana</div><div><b>${fmt(s.max)}</b>Máx</div></div></div>`;
   }
-  return h + `</div>`;
+  return h + `</div><p class="note">Tarjetas totales = amarillas de ambos equipos + 2 por cada roja.</p>`;
 }
 function renderP4(d){
   const L = d.rows.filter(r => r.lv === "L"), V = d.rows.filter(r => r.lv === "V");
@@ -568,7 +576,7 @@ function showTab(id){
     if($("liga").value === "otro") $("ligaCustom").value = saved.liga || "";
     $("equipo").value = saved.equipo || ""; if(saved.temp) $("temp").value = saved.temp; if(saved.n) $("n").value = saved.n;
     if(saved.filtro) st.filtro = saved.filtro;
-    if(saved.lines) for(const m of M) $("l_" + m.k).value = saved.lines[m.k] ?? "";
+    if(saved.lines) for(const m of M) if(m.k in saved.lines) $("l_" + m.k).value = saved.lines[m.k] ?? "";
     if(saved.proxy) $("proxy").value = saved.proxy;
   }
   $("ligaCustom").style.display = $("liga").value === "otro" ? "block" : "none";

@@ -216,8 +216,8 @@ input[type=file]{padding:9px 11px}
     <section class="card">
       <div class="row">
         <label for="mi_file">Archivo CSV de equipos (FootyStats)</label>
-        <input id="mi_file" type="file" accept=".csv,text/csv">
-        <div class="hint" id="mi_fileinfo">Aún no hay archivo cargado.</div>
+        <input id="mi_file" type="file">
+        <div class="hint" id="mi_fileinfo">Aún no hay archivo cargado. Sirve el CSV aunque el teléfono lo haya guardado como .html.</div>
       </div>
       <div class="grid2 row">
         <div><label for="mi_loc">Local</label><input id="mi_loc" list="mi_teams" placeholder="Basta un fragmento" autocomplete="off" autocapitalize="off"></div>
@@ -748,6 +748,8 @@ function miRender(res){
 /* ---- interfaz Mitades ---- */
 function miSetStatus(msg, err){ const s = $("mi_status"); s.textContent = msg; s.className = err ? "err" : ""; }
 function miLoadText(text, name){
+  if(/^\s*<(!doctype|html|head|body|script)/i.test(text))
+    throw new Error("Ese archivo es una página web (HTML), no un CSV. Probablemente FootyStats pidió iniciar sesión o la descarga falló. Vuelve a descargar el CSV con tu sesión iniciada.");
   const rows = miParseCSV(text);
   if(!rows.length) throw new Error("El archivo está vacío o no es un CSV válido.");
   mi.rows = rows; mi.name = name;
